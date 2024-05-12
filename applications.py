@@ -21,15 +21,13 @@ class ApplicationsPage(QWidget):
         self.form_applications.comboBoxFilterOptions.setPlaceholderText("Filtreleme Alani")
         self.form_applications.comboBoxPreviousApplications.setPlaceholderText("Previous VIT Check by ...")
         self.form_applications.comboBoxPreviousApplications.addItems(['Previous VIT Check by name', 'Previous VIT Check by mail', 'Previous VIT Check by postcode'])
+        self.form_applications.comboBoxDuplicatedApplications.setPlaceholderText("Duplicated Applications Check by ...")
         self.form_applications.comboBoxDuplicatedApplications.addItems(['Duplicated Applications Check by name', 'Duplicated Applications Check by mail', 'Duplicated Applications Check by postcode'])
 
         self.worksheet = main.connection_hub('credentials/key.json', 'Basvurular2', 'Sayfa1')
         self.applications = self.worksheet.get_all_values()
         # Rebuilds the list based on the data type of the cells.
         self.applications = main.remake_it_with_types(self.applications)
-
-        self.filtering_column = 2
-        self.filtering_list = self.applications
 
         #   This is a special code list manipulation for "total applications"
         #   You can change the wanted columns for tableWidget here
@@ -44,22 +42,18 @@ class ApplicationsPage(QWidget):
         # This code updates the tableWidget headers
         main.write2table(self.form_applications, main.list_exclude([self.applications[0]], self.excluding_list))
 
+        self.filtering_column = 2
         self.menu_user = None
         self.menu_admin = None
 
         self.form_applications.pushButtonSearch.clicked.connect(self.app_search)
+        self.form_applications.lineEditSearch.returnPressed.connect(self.app_search)
         self.form_applications.pushButtonAllApplications.clicked.connect(self.app_all_applications)
         self.form_applications.pushButtonPlannedMeetings.clicked.connect(self.app_planned_meetings)
         self.form_applications.pushButtonUnscheduledMeeting.clicked.connect(self.app_unscheduled_meetings)
-        # self.form_applications.pushButtonPreviousVitCheck.clicked.connect(self.app_previous_application_check)
-        self.form_applications.comboBoxPreviousApplications.currentIndexChanged.connect(
-            self.app_previous_application_check)
-        self.form_applications.comboBoxFilterOptions.addItems(main.filter_active_options(self.filtering_list,   # Ahmet abiyle 26.04.2024 toplanti sonrasi ekledim. Aktif veri ile calismayi saglayan bir kod olmasi gerekiyor. Sorun olursa kontrol edelim... (bu notu yazdiktan sonra gorusmedik..)
-                                                                                         self.filtering_column))
+        self.form_applications.comboBoxPreviousApplications.currentIndexChanged.connect(self.app_previous_application_check)
         self.form_applications.comboBoxFilterOptions.currentIndexChanged.connect(self.filter_table)
-
         self.form_applications.comboBoxDuplicatedApplications.currentIndexChanged.connect(self.app_duplicate_records)
-
         self.form_applications.pushButtonDifferentialRegistrations.clicked.connect(self.app_differential_registrations)
         self.form_applications.pushButtonFilterApplications.clicked.connect(self.app_filter_applications)
         self.form_applications.pushButtonBackMenu.clicked.connect(self.back_menu)
@@ -92,17 +86,16 @@ class ApplicationsPage(QWidget):
         if len(filtered_data) > 1:
             pass
         else:
-            no_mentee = ['No User or Mentor Found!']
+            no_mentee = ['Nothing found for filtering!']
             [no_mentee.append('-') for i in range(len(self.filtering_list[0]) - 1)]
             filtered_data.append(no_mentee)
-            # filtered_data.append(['No User or Mentor Found.!', '-', '-', '-', '-', '-', '-', '-', ])
+            # filtered_data.append(['Nothing found for filtering!', '-', '-', '-', '-', '-', '-', '-', ])
             # Above - one line - code works as same as active code. But active code is automated for cell amount
         return main.write2table(self.form_applications, filtered_data)
 
     def app_search(self):
-        self.filtering_list = self.applications    # I added it for filtering.
-        searched_applications = [self.filtering_list[0]]
-        for application in self.filtering_list[1:]:
+        searched_applications = [self.applications[0]]
+        for application in self.applications[1:]:
             if (self.form_applications.lineEditSearch.text().strip().lower() in application[2].strip().lower()
                     and self.form_applications.lineEditSearch.text().strip().lower() != ''):
                 searched_applications.append(application)
@@ -111,18 +104,28 @@ class ApplicationsPage(QWidget):
         self.form_applications.lineEditSearch.setText('')
 
         if len(searched_applications) > 1:  # If the searched_people variable is not empty!
-            pass
+            # The result obtained with the help of the method is printed into the comboBoxFilterOptions for filtering.
+            # -3 row down-
+            self.filtering_list = searched_applications  # Assigned for filtering.
+            self.form_applications.comboBoxFilterOptions.clear()
+            self.form_applications.comboBoxFilterOptions.addItems(main.filter_active_options(self.filtering_list, self.filtering_column))
         else:
+            self.form_applications.comboBoxFilterOptions.clear()    # clears the combobox
             no_application = ['No User or Mentor Found!']
-            [no_application.append('-') for i in range(len(self.filtering_list[0]) - 1)]
+            [no_application.append('-') for i in range(len(self.applications[0]) - 1)]
             searched_applications.append(no_application)
             # searched_applications.append(['No User or Mentor Found!', '-', '-', '-', '-', '-', '-', '-', ])
             # Above - one line - code works as same as active code. But active code is automated for cell amount
         return main.write2table(self.form_applications, searched_applications)
 
     def app_all_applications(self):
-        self.filtering_list = self.applications    # I added it for filtering.
-        main.write2table(self.form_applications, self.filtering_list)
+        # The result obtained with the help of the method is printed into the comboBoxFilterOptions for filtering.
+        # -3 row down-
+        self.filtering_list = list(self.applications)  # Assigned for filtering.
+        self.form_applications.comboBoxFilterOptions.clear()
+        self.form_applications.comboBoxFilterOptions.addItems(main.filter_active_options(self.filtering_list, self.filtering_column))
+
+        main.write2table(self.form_applications, self.applications)
 
     # This method is for next two method
     @staticmethod  # This method is used with next two method together
@@ -134,11 +137,15 @@ class ApplicationsPage(QWidget):
         return searched_applications
 
     def app_planned_meetings(self):
-        self.filtering_list = self.applications    # I added it for filtering.
-        planned_applications = [self.filtering_list[0]]
-        planned_applications.extend(self.app_column_checker(self.filtering_list, "OK", 21))
+        planned_applications = [self.applications[0]]
+        planned_applications.extend(self.app_column_checker(self.applications, "OK", 21))
+
         if len(planned_applications) > 1:  # If the planned_applications variable is not empty!
-            pass
+            # The result obtained with the help of the method is printed into the comboBoxFilterOptions for filtering.
+            # -3 row down-
+            self.filtering_list = planned_applications  # Assigned for filtering.
+            self.form_applications.comboBoxFilterOptions.clear()
+            self.form_applications.comboBoxFilterOptions.addItems(main.filter_active_options(self.filtering_list, self.filtering_column))
         else:
             no_application = ['There is no planned meetings!']
             [no_application.append('-') for i in range(len(self.filtering_list[0]) - 1)]
@@ -148,11 +155,15 @@ class ApplicationsPage(QWidget):
         return main.write2table(self.form_applications, planned_applications)
 
     def app_unscheduled_meetings(self):
-        self.filtering_list = self.applications    # I added it for filtering.
-        unscheduled_applications = [self.filtering_list[0]]
-        unscheduled_applications.extend(self.app_column_checker(self.filtering_list, "ATANMADI", 21))
+        unscheduled_applications = [self.applications[0]]
+        unscheduled_applications.extend(self.app_column_checker(self.applications, "ATANMADI", 21))
+
         if len(unscheduled_applications) > 1:  # If the unscheduled_applications variable is not empty!
-            pass
+            # The result obtained with the help of the method is printed into the comboBoxFilterOptions for filtering.
+            # -3 row down-
+            self.filtering_list = unscheduled_applications  # Assigned for filtering.
+            self.form_applications.comboBoxFilterOptions.clear()
+            self.form_applications.comboBoxFilterOptions.addItems(main.filter_active_options(self.filtering_list, self.filtering_column))
         else:
             no_application = ['There is no unscheduled meetings!']
             [no_application.append('-') for i in range(len(self.filtering_list[0]) - 1)]
@@ -162,17 +173,28 @@ class ApplicationsPage(QWidget):
         return main.write2table(self.form_applications, unscheduled_applications)
 
     def app_duplicate_records(self):
-        self.filtering_list = self.applications    # I added it for filtering.
-        duplicate_list = [self.filtering_list[0]]
+        duplicate_list = [self.applications[0]]
 
-        for i in range(len(self.filtering_list[1:])):
-            for j in range(i + 1, len(self.filtering_list[1:])):
-                if (self.filtering_list[1:][i][2] == self.filtering_list[1:][j][2]
-                        or self.filtering_list[1:][i][3] == self.filtering_list[1:][j][3]):
-                    duplicate_list.append(self.filtering_list[1:][i])
-                    duplicate_list.append(self.filtering_list[1:][j])
+        # for i in range(len(self.filtering_list[1:])):
+        #     if self.filtering_list[1:][i] not in duplicate_list:    # tekrar edilen eleman bilgisi bir kez yazilir.
+        #         found = 0   # tekrar edilen eleman bilgisinin bir kez yazilmasina yardimci olan yapi/degisken
+        #         for j in range(i + 1, len(self.filtering_list[1:])):
+        #             if self.filtering_list[1:][i][2] == self.filtering_list[1:][j][2]:
+        #                 found += 1
+        #                 if found == 1:
+        #                     duplicate_list.append(self.filtering_list[1:][i])
+        #                 duplicate_list.append(self.filtering_list[1:][j])
+
+        same_records = self.find_same_application(self.applications[1:],
+                                                     self.form_applications.comboBoxDuplicatedApplications.currentText())
+        duplicate_list.extend(same_records)
+
         if len(duplicate_list) > 1:  # If the duplicate_list variable is not empty!
-            pass
+            # The result obtained with the help of the method is printed into the comboBoxFilterOptions for filtering.
+            # -3 row down-
+            self.filtering_list = duplicate_list  # Assigned for filtering.
+            self.form_applications.comboBoxFilterOptions.clear()
+            self.form_applications.comboBoxFilterOptions.addItems(main.filter_active_options(self.filtering_list, self.filtering_column))
         else:
             no_application = ['There is no double applicant!']
             [no_application.append('-') for i in range(len(self.filtering_list[0]) - 1)]
@@ -181,39 +203,39 @@ class ApplicationsPage(QWidget):
             # Above - one line - code works as same as active code. But active code is automated for cell amount
         return main.write2table(self.form_applications, duplicate_list)
 
-    # This method will be used in next method only
-    # This method finds common elements in two lists with given properties
-    @staticmethod
-    def find_common_elements(nested_list1, nested_list2):
-        common_elements = []
-        for sublist1 in nested_list1:
-            for sublist2 in nested_list2:
-                if (sublist1[2].strip().lower() in sublist2[2].strip().lower() or sublist2[2].strip().lower() in
-                        sublist1[2].strip().lower() or sublist1[3].strip().lower() == sublist2[3].strip().lower()):
-                    common_elements.append(sublist1)
-                    common_elements.append(sublist2)
-        return common_elements
-
     # New auxiliary function for app_previous_application_check()
     # after discussing meeting with Ibrahim abi & Omer abi on 2024.04.16 at 22:00
-    @staticmethod
-    def find_same_application(a_list, cmbboxName):
+
+    def find_same_application(self, a_list, cmbboxName):
         duplicated = []
         column = 0
-        if cmbboxName == 'Previous VIT Check by name':
+        if cmbboxName == 'Previous VIT Check by name' or cmbboxName == 'Duplicated Applications Check by name':
             column = 2
-        elif cmbboxName == 'Previous VIT Check by mail':
+            self.filtering_column = 2
+        elif cmbboxName == 'Previous VIT Check by mail' or cmbboxName == 'Duplicated Applications Check by mail':
             column = 3
-        elif cmbboxName == 'Previous VIT Check by postcode':
+            self.filtering_column = 3
+        elif cmbboxName == 'Previous VIT Check by postcode' or cmbboxName == 'Duplicated Applications Check by postcode':
             column = 5
-        for i, row1 in enumerate(a_list):
-            tekrar = 0
-            for j, row2 in enumerate(a_list[i + 1:]):
-                if row1[column] == row2[column]:
-                    if tekrar < 1:
-                        duplicated.append(row1)
-                    duplicated.append(row2)
-                    tekrar += 1
+            self.filtering_column = 5
+        # for i, row1 in enumerate(a_list):
+        #     tekrar = 0
+        #     for j, row2 in enumerate(a_list[i + 1:]):
+        #         if row1[column] == row2[column]:
+        #             if tekrar < 1:
+        #                 duplicated.append(row1)
+        #             duplicated.append(row2)
+        #             tekrar += 1
+        ####
+        for i in range(len(a_list)):
+            found = 0   # tekrar edilen eleman bilgisinin bir kez yazilmasina yardimci olan yapi/degisken
+            if a_list[i] not in duplicated:    # tekrar edilen eleman bilgisi bir kez yazilir.
+                for j in range(i + 1, len(a_list)):
+                    if a_list[i][column] == a_list[j][column]:
+                        found += 1
+                        if found == 1:
+                            duplicated.append(a_list[i])
+                        duplicated.append(a_list[j])
         return duplicated
 
     # !!! Explanations for program user, not for developers: This method(below method with above method's help)
@@ -230,61 +252,26 @@ class ApplicationsPage(QWidget):
 
         # New Code between this row and (Go down...)
         # after discussing meeting with Ibrahim abi & Omer abi on 2024.04.16 at 22:00
-        all_vit_list = self.VIT1
+        all_vit_list = list(self.applications)  # self.applications icindeki verilerin etkilenmemesi icin bu sekilde(degisken(aslinda degisjken degil de nesne oldugu icin bu sorun oluyor. Aciklama satirini yazdiktan sonra bu parantez icindeki yazdigim seyleri anladim ve yazdim...)te tipine cast edilerek) atama yapilmasi gerekiyormus!!!
         all_vit_list.extend(self.VIT2[1:])
-        all_vit_list.extend(self.applications[1:])
+        all_vit_list.extend(self.VIT1[1:])
         same_applicants = self.find_same_application(all_vit_list[1:], self.form_applications.comboBoxPreviousApplications.currentText())
         double_applicants.extend(same_applicants)
-        self.filtering_list = double_applicants    # I added it for filtering.
-        self.form_applications.comboBoxFilterOptions.currentIndexChanged.connect(self.filter_table)
         # ... this row (New Code)
 
-        # double_applicants.extend(self.find_common_elements(self.VIT1[1:], self.VIT2[1:]))
-        # double_applicants.extend(self.find_common_elements(self.VIT1[1:], self.applications[1:]))
-        # double_applicants.extend(self.find_common_elements(self.VIT2[1:], self.applications[1:]))
-        #
-        # unique_list = []
-        # [unique_list.append(x) for x in double_applicants if x not in unique_list]
-        # double_applicants = unique_list
-
-        # These codes(below) are my first codes. I improved new codes above later with help of chatgpt.
-        #
-        # for user in self.VIT1:
-        #     if self.find_same(self.applications, user):
-        #         double_applicants.append(user)
-        #     elif self.find_same(self.VIT2, user):
-        #         double_applicants.append(user)
-        #     else:
-        #         continue
-        #
-        # for user in self.VIT2:
-        #     if self.find_same(self.applications, user):
-        #         double_applicants.append(user)
-        #
-        #
-        # @staticmethod
-        # def find_same(a_list, element):
-        #     for i in a_list:
-        #         if element[1] in i[1] and element[2] in i[2]:
-        #             return True
-        #     else:
-        #         return False
-
-        # The code below reorders the list according to the data in the first index of the elements of the relevant
-        # nested list.
-        if True:
-            sorted_list = double_applicants
-        # sorted_list = sorted(double_applicants, key=lambda x: x[1].lower()) # ibrahim&Omer abilerle toplanti sonrasi devre disi birskildi. Orijinal kayit sirasini gormek istiyorlar
-        #
-        if len(sorted_list) > 1:  # If the sorted_list variable is not empty!
-            pass
+        if len(double_applicants) > 1:  # If the double_applicants variable is not empty!
+            # The result obtained with the help of the method is printed into the comboBoxFilterOptions for filtering.
+            # -3 row down-
+            self.filtering_list = double_applicants  # Assigned for filtering.
+            self.form_applications.comboBoxFilterOptions.clear()
+            self.form_applications.comboBoxFilterOptions.addItems(main.filter_active_options(self.filtering_list, self.filtering_column))
         else:
             no_application = ['There is no double applicant!']
             [no_application.append('-') for i in range(len(self.filtering_list[0]) - 1)]
-            sorted_list.append(no_application)
-            # sorted_list.append(['No User or Mentor Found!', '-', '-', '-', '-', '-', '-', '-', ])
+            double_applicants.append(no_application)
+            # double_applicants.append(['There is no double applicant!', '-', '-', '-', '-', '-', '-', '-', ])
             # Above - one line - code works as same as active code. But active code is automated for cell amount
-        return main.write2table(self.form_applications, sorted_list)
+        return main.write2table(self.form_applications, double_applicants)
 
     # Bu method icin (asagidaki) istenen seyin cok gerekli olup olmadigi konusunda emin degilim. Farkli kayitlar
     # isminde bir method yazacaksak bence bu soyle calismaliydi. Misal bir kisi (adi ayni olacak, sonucta resmi ve
@@ -319,7 +306,11 @@ class ApplicationsPage(QWidget):
                 differential_users.append(user2)
 
         if len(differential_users) > 1:  # If the searched_people variable is not empty!
-            pass
+            # The result obtained with the help of the method is printed into the comboBoxFilterOptions for filtering.
+            # -3 row down-
+            self.filtering_list = differential_users  # Assigned for filtering.
+            self.form_applications.comboBoxFilterOptions.clear()
+            self.form_applications.comboBoxFilterOptions.addItems(main.filter_active_options(self.filtering_list, self.filtering_column))
         else:
             no_application = ['There is no differential applicant!']
             [no_application.append('-') for i in range(len(self.applications[0]) - 1)]
@@ -329,15 +320,19 @@ class ApplicationsPage(QWidget):
         return main.write2table(self.form_applications, differential_users)
 
     def app_filter_applications(self):
-        self.filtering_list = self.applications    # I added it for filtering.
-        filtered_unique_applications = [self.filtering_list[0]]
+        filtered_unique_applications = [self.applications[0]]
         unique_names = set()
-        for application in self.filtering_list[1:]:
+        for application in self.applications[1:]:
             if application[2].strip().lower() not in unique_names:
                 filtered_unique_applications.append(application)
                 unique_names.add(application[2].strip().lower())
+
         if len(filtered_unique_applications) > 1:  # If the filtered_unique_applications variable is not empty!
-            pass
+            # The result obtained with the help of the method is printed into the comboBoxFilterOptions for filtering.
+            # -3 row down-
+            self.filtering_list = filtered_unique_applications  # Assigned for filtering.
+            self.form_applications.comboBoxFilterOptions.clear()
+            self.form_applications.comboBoxFilterOptions.addItems(main.filter_active_options(self.filtering_list, self.filtering_column))
         else:
             no_application = ['There is no application!']
             [no_application.append('-') for i in range(len(self.filtering_list[0]) - 1)]
